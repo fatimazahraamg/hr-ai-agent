@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RH Intelligence | Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body class="bg-[#0e1117] text-gray-100 min-h-screen">
+
+    <nav class="bg-[#1c1f26] border-b border-gray-700 p-4">
+        <div class="container mx-auto flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <img src="image/distinktec.png" alt="Logo" class="h-10 w-10">
+                <span class="text-xl font-bold tracking-tight text-[#4CAF50]">DISTINKTEC IA</span>
+            </div>
+            <div class="text-sm text-gray-400">Agent RH Prédictif v1.0</div>
+        </div>
+    </nav>
+
+    <main class="container mx-auto py-10 px-4">
+        <div class="mb-10">
+            <h1 class="text-3xl font-bold text-white">Tableau de Bord Décisionnel</h1>
+            <p class="text-gray-400">Analyse de la stabilité et du risque d'attrition des talents.</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
+            <div class="bg-[#1c1f26] border border-gray-600 rounded-xl p-6 shadow-lg">
+                <h3 class="text-lg font-semibold mb-4 text-white">Base de données interne</h3>
+                <p class="text-sm text-gray-400 mb-6">Analyser tous les fichiers JSON présents dans le dossier candidats.</p>
+                <button onclick="fetchAllAnalysis()" class="w-full bg-[#4CAF50] hover:bg-green-600 text-white font-bold py-3 rounded-lg transition duration-300">
+                    <i class="fas fa-sync-alt mr-2"></i> Lancer l'Analyse Globale
+                </button>
+            </div>
+
+            <div class="bg-[#1c1f26] border border-gray-600 rounded-xl p-6 shadow-lg">
+                <h3 class="text-lg font-semibold mb-4 text-white">Nouveau Profil</h3>
+                <p class="text-sm text-gray-400 mb-6">Importer un fichier JSON pour analyser un profil spécifique.</p>
+
+                <input type="file" id="fileInput" accept=".json" class="hidden" onchange="handleFileUpload(event)">
+
+                <button onclick="document.getElementById('fileInput').click()" class="w-full border border-gray-500 hover:bg-gray-700 text-white font-bold py-3 rounded-lg transition duration-300">
+                    <i class="fas fa-upload mr-2"></i> Ajouter un Candidat (JSON)
+                </button>
+            </div>
+        </div>
+
+        <div id="loading" class="hidden text-center py-10">
+            <div class="animate-spin text-[#4CAF50] text-4xl mb-4"><i class="fas fa-circle-notch"></i></div>
+            <p>Analyse par l'IA en cours...</p>
+        </div>
+
+        <div id="results-grid" class="grid grid-cols-1 lg:grid-cols-2 gap-6"></div>
+    </main>
+
+    <script>
+        const API_URL = "http://127.0.0.1:8000";
+
+        // 1. FONCTION POUR ANALYSER TOUTE LA BASE
+        async function fetchAllAnalysis() {
+            const grid = document.getElementById('results-grid');
+            const loader = document.getElementById('loading');
+
+            grid.innerHTML = "";
+            loader.classList.remove('hidden');
+
+            try {
+                const response = await fetch(`${API_URL}/analyze-all`);
+                const data = await response.json();
+                loader.classList.add('hidden');
+
+                data.forEach(item => displayCard(item));
+            } catch (error) {
+                loader.classList.add('hidden');
+                alert("Erreur lors de la connexion à l'API. Vérifiez que le Backend est lancé.");
+            }
+        }
+
+        // 2. FONCTION POUR GERER L'UPLOAD D'UN FICHIER
+        async function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const grid = document.getElementById('results-grid');
+            const loader = document.getElementById('loading');
+
+            grid.innerHTML = "";
+            loader.classList.remove('hidden');
+
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                try {
+                    const candidateData = JSON.parse(e.target.result);
+
+                    // Appel de la route POST de ton FastAPI
+                    const response = await fetch(`${API_URL}/analyze-one`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(candidateData)
+                    });
+
+                    const item = await response.json();
+                    loader.classList.add('hidden');
+
+                    displayCard(item);
+                    // Réinitialiser l'input pour pouvoir uploader le même fichier deux fois si besoin
+                    event.target.value = '';
+
+                } catch (error) {
+                    loader.classList.add('hidden');
+                    alert("Erreur : Fichier JSON invalide ou problème avec le serveur API.");
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        // 3. FONCTION COMMUNE POUR AFFICHER UNE CARTE
+        function displayCard(item) {
+            const grid = document.getElementById('results-grid');
+            const res = item.result;
+            const card = document.createElement('div');
+            card.className = "bg-[#1c1f26] border border-gray-600 rounded-xl p-6 shadow-md transition-all hover:border-[#4CAF50]";
+
+            const riskColor = res.risk > 50 ? 'text-red-500' : 'text-green-500';
+            const recommendation = res.risk > 50 ? '❌ Risque Élevé' : '✅ Profil Stable';
+
+            card.innerHTML = `
+                <div class="flex justify-between items-start mb-4">
+                    <h4 class="text-xl font-bold text-white">${item.file || 'Candidat Uploadé'}</h4>
+                    <span class="text-xs font-mono bg-gray-700 px-2 py-1 rounded text-white">${recommendation}</span>
+                </div>
+                <div class="grid grid-cols-2 gap-4 mb-6">
+                    <div class="bg-gray-800 p-3 rounded-lg border border-gray-700">
+                        <p class="text-xs text-gray-400 uppercase">Risque d'Attrition</p>
+                        <p class="text-2xl font-bold ${riskColor}">${res.risk}%</p>
+                    </div>
+                    <div class="bg-gray-800 p-3 rounded-lg border border-gray-700">
+                        <p class="text-xs text-gray-400 uppercase">Stabilité</p>
+                        <p class="text-2xl font-bold text-white">${res.stability}%</p>
+                    </div>
+                </div>
+                <p class="text-sm text-gray-400 mb-2 font-semibold">Facteurs d'influence identifiés :</p>
+                <div class="flex flex-wrap gap-2">
+                    ${res.top_factors.map(f => `<span class="text-[10px] bg-gray-700 text-gray-200 px-2 py-1 rounded-full border border-gray-600">${f}</span>`).join('')}
+                </div>
+            `;
+            grid.appendChild(card);
+        }
+    </script>
+</body>
+</html>
